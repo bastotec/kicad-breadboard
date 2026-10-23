@@ -28,6 +28,7 @@ from .canvas import (BreadboardCanvas, CanvasLayout,
                      MODE_DRAW_LINE, MODE_DRAW_RECT, MODE_DRAW_TEXT, MODE_DRAW_CIRCLE,
                      MODE_DRAW_TEXTBOX, WIRE_COLORS)
 from .tray import ComponentTray
+from .model.inspector import component_details
 from .prefs import Preferences, save_prefs, load_prefs
 from .model import (
     Breadboard, Netlist,
@@ -377,6 +378,17 @@ class BreadboardWindow(wx.Frame):
         tray_panel.SetBackgroundColour(_panel_bg())
         tray_sizer = wx.BoxSizer(wx.VERTICAL)
 
+        # Read-only inspector; existing controls remain below in the same scroller.
+        details_label = wx.StaticText(tray_panel, label='Selected component')
+        details_label.SetFont(wx.Font(9, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL,
+                                      wx.FONTWEIGHT_BOLD))
+        tray_sizer.Add(details_label, 0, wx.ALL, 6)
+        self._component_details = wx.TextCtrl(
+            tray_panel, value=component_details(self.board, self.netlist, None),
+            size=(-1, 220), style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_WORDWRAP)
+        tray_sizer.Add(self._component_details, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 6)
+        tray_sizer.Add(wx.StaticLine(tray_panel), 0, wx.EXPAND | wx.ALL, 6)
+
         # --- Binding-post assignment section ---
         self._binding_panel = wx.Panel(tray_panel)
         binding_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -602,11 +614,12 @@ class BreadboardWindow(wx.Frame):
         self.tray.on_rpi_label_mode = lambda v: self.canvas.set_rpi_long_labels(v)
         self.tray.on_color_changed = lambda: self.canvas.Refresh()
         self.canvas.on_placed = self._on_canvas_placed
+        self.canvas.on_selection_changed = self._refresh_component_details
         self.canvas.on_probe_placed = self._on_probe_placed
         self.canvas.on_history_change = self._on_history_change
         self.canvas.on_restore = self._on_restore
         self.canvas.on_terminal_right_click = self._on_terminal_right_click
-        self.canvas.on_board_changed = self._revalidate_live
+        self.canvas.on_board_changed = self._on_board_changed
 
         self.SetStatusBar(wx.StatusBar(self))
         self.GetStatusBar().SetFieldsCount(2)
@@ -942,8 +955,19 @@ class BreadboardWindow(wx.Frame):
         self._refresh_probe_choices()
         self._revalidate_live()
 
+    def _refresh_component_details(self) -> None:
+        text = component_details(self.canvas.board, self.canvas.netlist,
+                                 self.canvas.selected_ref)
+        if self._component_details.GetValue() != text:
+            self._component_details.ChangeValue(text)
+
     def _on_canvas_placed(self, ref: str) -> None:
         self.tray.refresh_placed()
+        self._refresh_component_details()
+        self._revalidate_live()
+
+    def _on_board_changed(self) -> None:
+        self._refresh_component_details()
         self._revalidate_live()
 
     def _revalidate_live(self) -> None:
@@ -2077,6 +2101,7 @@ class BreadboardWindow(wx.Frame):
         self._netlist_path = path
 
         self.canvas.netlist = self.netlist
+        self._refresh_component_details()
         self.tray.load_netlist(self.netlist)
 
         self._auto_assign_gnd()

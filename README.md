@@ -373,6 +373,33 @@ python -m plugins.breadboard.standalone path/to/circuit.net
 
 ---
 
+## Selected component details
+
+In **Select / Move** mode, click a placed component or one of its leads to show
+its known details in the right sidebar. Selecting another component replaces the
+details; selecting empty space, another object, or another tool clears them.
+The panel is read-only and does not change the circuit or saved-session format.
+
+Value, symbol, library and description come from the loaded schematic metadata.
+Missing fields are marked **Unknown**. The **renderer template** is shown
+separately: it is a heuristic drawing/layout choice, not proof of the actual
+part identity or package. Pin locations are the current placements; the listed
+schematic nets are intended connections, not validation of the wiring. The
+inspector does not generate datasheet links.
+
+## Development tests
+
+```bash
+python3 -m unittest discover -s tests -v
+python3 -m compileall -q plugins tests
+```
+
+The regression fixtures are synthetic. Model/session tests use only the standard
+library. The wx UI suite needs wxPython and a supported display; without both it
+reports a skip. On an environment already providing wxPython and Xvfb, use
+`xvfb-run -a python3 -m unittest discover -s tests -v` to exercise UI events
+without installing or activating the KiCad plugin.
+
 ## Troubleshooting
 
 <details>

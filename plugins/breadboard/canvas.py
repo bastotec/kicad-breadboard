@@ -1424,6 +1424,7 @@ class BreadboardCanvas(wx.Panel):
 
         # Callbacks
         self.on_placed: Optional[callable] = None
+        self.on_selection_changed: Optional[callable] = None  # called after selection changes
         self.on_probe_placed: Optional[callable] = None  # called with probe name
         self.on_history_change: Optional[callable] = None  # called(can_undo, can_redo)
         self.on_restore: Optional[callable] = None  # called after undo/redo for full UI refresh
@@ -1482,9 +1483,27 @@ class BreadboardCanvas(wx.Panel):
         self._pan_initialized = False   # re-fit to the (possibly transposed) canvas
         self.Refresh()
 
+    @property
+    def _selected_ref(self) -> Optional[str]:
+        return self.__selected_ref
+
+    @_selected_ref.setter
+    def _selected_ref(self, ref: Optional[str]) -> None:
+        # All selection paths (including mode switches and undo) share this hook.
+        self.__selected_ref = ref
+        callback = getattr(self, 'on_selection_changed', None)
+        if callback:
+            callback()
+
+    @property
+    def selected_ref(self) -> Optional[str]:
+        """Currently selected component, or None for other object types."""
+        return self._selected_ref
+
     def reload_board(self, board: Breadboard) -> None:
         """Replace the active board and resync all derived state (module pins, etc.)."""
         self.board = board
+        self._selected_ref = None
         self._populate_module_pins()
         self.Refresh()
 
