@@ -1234,6 +1234,12 @@ class BreadboardWindow(wx.Frame):
                           wx.OK | wx.ICON_ERROR, self)
             return
 
+        self.netlist = None
+        self.canvas.netlist = None
+        self._netlist_path = None
+        self.tray.load_netlist(Netlist({}, []))
+        self._close_sim_pane()
+
         # Restore board state
         self.board = result['board']
         self.canvas.reload_board(self.board)
@@ -1255,15 +1261,12 @@ class BreadboardWindow(wx.Frame):
         self.canvas._populate_module_pins()
         self.canvas._pan_initialized = False
 
-        # Reload the netlist from the saved path (if present and netlist not yet loaded)
         saved_netlist = result.get('netlist_path')
-        if saved_netlist and self.netlist is None:
+        if saved_netlist:
             try:
                 self._load_netlist(saved_netlist)
             except Exception:
-                pass  # carry on without netlist; user can open manually
-        elif self.netlist:
-            self.tray.refresh_placed()
+                pass
 
         # Always resync terminal and probe dropdowns from the restored board state
         self._refresh_terminal_choices()
@@ -1897,9 +1900,7 @@ class BreadboardWindow(wx.Frame):
 
     def _refresh_terminal_choices(self) -> None:
         """Repopulate the binding-post dropdowns from the loaded netlist."""
-        if self.netlist is None:
-            return
-        net_names = sorted(net.name for net in self.netlist.nets if net.name)
+        net_names = sorted(net.name for net in self.netlist.nets if net.name) if self.netlist else []
         choices = ['(unassigned)'] + net_names
         self._refreshing_choices = True
         try:
@@ -2029,9 +2030,7 @@ class BreadboardWindow(wx.Frame):
 
     def _refresh_probe_choices(self) -> None:
         """Repopulate probe net dropdowns from the loaded netlist."""
-        if self.netlist is None:
-            return
-        net_names = sorted(net.name for net in self.netlist.nets if net.name)
+        net_names = sorted(net.name for net in self.netlist.nets if net.name) if self.netlist else []
         choices = ['(unassigned)'] + net_names
         self._refreshing_choices = True
         try:
