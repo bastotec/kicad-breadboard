@@ -6,6 +6,17 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 - Use `python3 -m plugins.breadboard.standalone` for development without installing the plugin. The main wx layout is in `plugins/breadboard/window.py`; canvas selection lives in `plugins/breadboard/canvas.py`.
 - Renderer templates in `plugins/breadboard/model/components.py` are heuristic layouts, not verified manufacturer identities. Session compatibility is owned by `plugins/breadboard/model/session.py`.
 
+## Public verification artifacts
+
+Use synthetic generic circuits only. Mechanically scan the final rendered PR body
+and every attachment, as well as the diff, fixtures and supplied intent, for
+private names, workstation paths and internal run identifiers before publishing.
+Keep diagnostic logs private. Evidence drivers intended for publication must use
+relative or caller-supplied output paths, never hard-coded local evidence paths
+or run identifiers. Do not attach unsanitized diagnostic scripts or session files.
+Use an existing supported runtime for verification; do not install dependencies
+or activate a separate desktop installation as part of this change.
+
 ## Maintaining this file
 
 Keep this file for knowledge useful to almost every future agent session in this project.
