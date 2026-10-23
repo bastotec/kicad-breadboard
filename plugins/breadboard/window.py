@@ -1149,6 +1149,8 @@ class BreadboardWindow(wx.Frame):
                     if new_type != old_type:
                         self.board.remove(ref)
                         type_changed.append(ref)
+            if self.canvas.selected_ref in removed + type_changed:
+                self.canvas._selected_ref = None
             msgs = []
             if removed:
                 msgs.append(f'removed orphaned: {", ".join(removed)}')
@@ -1237,6 +1239,7 @@ class BreadboardWindow(wx.Frame):
         self.netlist = None
         self.canvas.netlist = None
         self._netlist_path = None
+        self._project_path = None
         self.tray.load_netlist(Netlist({}, []))
         self._close_sim_pane()
 
@@ -1264,9 +1267,14 @@ class BreadboardWindow(wx.Frame):
         saved_netlist = result.get('netlist_path')
         if saved_netlist:
             try:
-                self._load_netlist(saved_netlist)
+                netlist = parse_netlist(saved_netlist)
             except Exception:
                 pass
+            else:
+                self.netlist = netlist
+                self.canvas.netlist = netlist
+                self.tray.load_netlist(netlist)
+                self._netlist_path = saved_netlist
 
         # Always resync terminal and probe dropdowns from the restored board state
         self._refresh_terminal_choices()
