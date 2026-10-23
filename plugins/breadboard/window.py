@@ -1264,6 +1264,8 @@ class BreadboardWindow(wx.Frame):
         self.canvas._populate_module_pins()
         self.canvas._pan_initialized = False
 
+        # Restore metadata only; fresh-netlist defaults would overwrite saved
+        # electrical assignments (for example, automatic ground assignment).
         saved_netlist = result.get('netlist_path')
         if saved_netlist:
             try:
