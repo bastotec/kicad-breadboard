@@ -188,7 +188,7 @@ The tray card for each transistor shows its current pinout (e.g. **C-B-E** or **
 |---|---|
 | Open netlist | Load a `.net` file manually |
 | Save session | Save placements and wires to `.kicad_bbrd` |
-| Update from schematic | Re-export netlist from `.kicad_sch` via `kicad-cli` and reload *(requires KiCad project; not available in standalone mode)* |
+| Update from schematic | Re-export netlist from `.kicad_sch` via `kicad-cli` and reload (requires a project context; see [session loading](#selected-component-details)) |
 | Schematic | Open the schematic in Eeschema |
 | Export image | Save the current board view as a PNG or SVG (format set in Preferences) |
 | Preferences | Open the Preferences dialog |
@@ -243,7 +243,7 @@ Open **File → Preferences…** to configure the plugin. Settings take effect i
 | Setting | Description |
 |---|---|
 | Enable instruments panel | Show or hide the Function generator / Oscilloscope / PSU section in the side panel |
-| Auto-assign schematic ground | Automatically assign net `0` or `GND` to instrument grounds when a netlist is loaded |
+| Auto-assign schematic ground | Automatically assign net `0` or `GND` to instrument grounds when opening or updating a netlist (see [session loading](#selected-component-details)) |
 | Oscilloscope channels | Number of oscilloscope channel rows shown (1–4) |
 | PSU channels | Number of PSU channel pairs shown (1–3) |
 
@@ -281,7 +281,7 @@ Open **File → Preferences…** to configure the plugin. Settings take effect i
 
 ### Binding posts
 
-Binding posts (GND, V1, V2, and optionally V3) can be assigned to schematic nets via the dropdowns or by right-clicking the post. GND is automatically assigned to net `0` (SPICE-style) or `GND` when a netlist is loaded. The validator treats an assigned binding post as an electrical endpoint on that net.
+Binding posts (GND, V1, V2, and optionally V3) can be assigned to schematic nets via the dropdowns or by right-clicking the post. GND is automatically assigned to net `0` (SPICE-style) or `GND` when opening or updating a netlist (see [session loading](#selected-component-details)). The validator treats an assigned binding post as an electrical endpoint on that net.
 
 ### Instruments
 
@@ -372,6 +372,40 @@ python -m plugins.breadboard.standalone path/to/circuit.net
 </details>
 
 ---
+
+## Selected component details
+
+In **Select / Move** mode, click a placed component or one of its leads to show
+its known details in the right sidebar. Selecting another component replaces the
+details; selecting empty space, another object, or another tool clears them.
+The panel is read-only and does not change the circuit or saved-session format.
+
+Value, symbol, library and description come from the loaded schematic metadata.
+Missing fields are marked **Unknown**. The **renderer template** is shown
+separately: it is a heuristic drawing/layout choice, not proof of the actual
+part identity or package. Pin locations are the current placements; the listed
+schematic nets are intended connections, not validation of the wiring. The
+inspector does not generate datasheet links.
+
+Loading a session preserves saved electrical assignments and tries to reload
+metadata from its saved netlist path. If that file is missing or unreadable, the
+sidebar shows **Unknown** rather than details from the previous circuit.
+Session loading also clears the project context: use **Open netlist** with the
+associated `.net` file before **Update from schematic**, even when running
+inside KiCad.
+
+## Development tests
+
+```bash
+python3 -m unittest discover -s tests -v
+python3 -m compileall -q plugins tests
+```
+
+The regression fixtures are synthetic. Model/session tests use only the standard
+library. The wx UI suite needs wxPython and a supported display; without both it
+reports a skip. On an environment already providing wxPython and Xvfb, use
+`xvfb-run -a python3 -m unittest discover -s tests -v` to exercise UI events
+without installing or activating the KiCad plugin.
 
 ## Troubleshooting
 

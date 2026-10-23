@@ -28,6 +28,7 @@ from .canvas import (BreadboardCanvas, CanvasLayout,
                      MODE_DRAW_LINE, MODE_DRAW_RECT, MODE_DRAW_TEXT, MODE_DRAW_CIRCLE,
                      MODE_DRAW_TEXTBOX, WIRE_COLORS)
 from .tray import ComponentTray
+from .model.inspector import component_details
 from .prefs import Preferences, save_prefs, load_prefs
 from .model import (
     Breadboard, Netlist,
@@ -377,6 +378,17 @@ class BreadboardWindow(wx.Frame):
         tray_panel.SetBackgroundColour(_panel_bg())
         tray_sizer = wx.BoxSizer(wx.VERTICAL)
 
+        # Read-only inspector; existing controls remain below in the same scroller.
+        details_label = wx.StaticText(tray_panel, label='Selected component')
+        details_label.SetFont(wx.Font(9, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL,
+                                      wx.FONTWEIGHT_BOLD))
+        tray_sizer.Add(details_label, 0, wx.ALL, 6)
+        self._component_details = wx.TextCtrl(
+            tray_panel, value=component_details(self.board, self.netlist, None),
+            size=(-1, 220), style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_WORDWRAP)
+        tray_sizer.Add(self._component_details, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 6)
+        tray_sizer.Add(wx.StaticLine(tray_panel), 0, wx.EXPAND | wx.ALL, 6)
+
         # --- Binding-post assignment section ---
         self._binding_panel = wx.Panel(tray_panel)
         binding_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -602,11 +614,12 @@ class BreadboardWindow(wx.Frame):
         self.tray.on_rpi_label_mode = lambda v: self.canvas.set_rpi_long_labels(v)
         self.tray.on_color_changed = lambda: self.canvas.Refresh()
         self.canvas.on_placed = self._on_canvas_placed
+        self.canvas.on_selection_changed = self._refresh_component_details
         self.canvas.on_probe_placed = self._on_probe_placed
         self.canvas.on_history_change = self._on_history_change
         self.canvas.on_restore = self._on_restore
         self.canvas.on_terminal_right_click = self._on_terminal_right_click
-        self.canvas.on_board_changed = self._revalidate_live
+        self.canvas.on_board_changed = self._on_board_changed
 
         self.SetStatusBar(wx.StatusBar(self))
         self.GetStatusBar().SetFieldsCount(2)
@@ -942,8 +955,19 @@ class BreadboardWindow(wx.Frame):
         self._refresh_probe_choices()
         self._revalidate_live()
 
+    def _refresh_component_details(self) -> None:
+        text = component_details(self.canvas.board, self.canvas.netlist,
+                                 self.canvas.selected_ref)
+        if self._component_details.GetValue() != text:
+            self._component_details.ChangeValue(text)
+
     def _on_canvas_placed(self, ref: str) -> None:
         self.tray.refresh_placed()
+        self._refresh_component_details()
+        self._revalidate_live()
+
+    def _on_board_changed(self) -> None:
+        self._refresh_component_details()
         self._revalidate_live()
 
     def _revalidate_live(self) -> None:
@@ -1125,6 +1149,8 @@ class BreadboardWindow(wx.Frame):
                     if new_type != old_type:
                         self.board.remove(ref)
                         type_changed.append(ref)
+            if self.canvas.selected_ref in removed + type_changed:
+                self.canvas._selected_ref = None
             msgs = []
             if removed:
                 msgs.append(f'removed orphaned: {", ".join(removed)}')
@@ -1210,6 +1236,13 @@ class BreadboardWindow(wx.Frame):
                           wx.OK | wx.ICON_ERROR, self)
             return
 
+        self.netlist = None
+        self.canvas.netlist = None
+        self._netlist_path = None
+        self._project_path = None
+        self.tray.load_netlist(Netlist({}, []))
+        self._close_sim_pane()
+
         # Restore board state
         self.board = result['board']
         self.canvas.reload_board(self.board)
@@ -1231,15 +1264,19 @@ class BreadboardWindow(wx.Frame):
         self.canvas._populate_module_pins()
         self.canvas._pan_initialized = False
 
-        # Reload the netlist from the saved path (if present and netlist not yet loaded)
+        # Restore metadata only; fresh-netlist defaults would overwrite saved
+        # electrical assignments (for example, automatic ground assignment).
         saved_netlist = result.get('netlist_path')
-        if saved_netlist and self.netlist is None:
+        if saved_netlist:
             try:
-                self._load_netlist(saved_netlist)
+                netlist = parse_netlist(saved_netlist)
             except Exception:
-                pass  # carry on without netlist; user can open manually
-        elif self.netlist:
-            self.tray.refresh_placed()
+                pass
+            else:
+                self.netlist = netlist
+                self.canvas.netlist = netlist
+                self.tray.load_netlist(netlist)
+                self._netlist_path = saved_netlist
 
         # Always resync terminal and probe dropdowns from the restored board state
         self._refresh_terminal_choices()
@@ -1873,9 +1910,7 @@ class BreadboardWindow(wx.Frame):
 
     def _refresh_terminal_choices(self) -> None:
         """Repopulate the binding-post dropdowns from the loaded netlist."""
-        if self.netlist is None:
-            return
-        net_names = sorted(net.name for net in self.netlist.nets if net.name)
+        net_names = sorted(net.name for net in self.netlist.nets if net.name) if self.netlist else []
         choices = ['(unassigned)'] + net_names
         self._refreshing_choices = True
         try:
@@ -2005,9 +2040,7 @@ class BreadboardWindow(wx.Frame):
 
     def _refresh_probe_choices(self) -> None:
         """Repopulate probe net dropdowns from the loaded netlist."""
-        if self.netlist is None:
-            return
-        net_names = sorted(net.name for net in self.netlist.nets if net.name)
+        net_names = sorted(net.name for net in self.netlist.nets if net.name) if self.netlist else []
         choices = ['(unassigned)'] + net_names
         self._refreshing_choices = True
         try:
@@ -2077,6 +2110,7 @@ class BreadboardWindow(wx.Frame):
         self._netlist_path = path
 
         self.canvas.netlist = self.netlist
+        self._refresh_component_details()
         self.tray.load_netlist(self.netlist)
 
         self._auto_assign_gnd()
